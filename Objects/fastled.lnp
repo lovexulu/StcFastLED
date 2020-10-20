@@ -1,0 +1,5 @@
+".\Objects\STARTUP.obj",
+".\Objects\fastled.obj",
+".\Objects\display.obj" 
+TO ".\Objects\fastled" 
+PRINT(".\Listings\fastled.m51") RAMSIZE(256) 

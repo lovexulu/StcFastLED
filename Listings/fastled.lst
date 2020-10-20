@@ -1,0 +1,182 @@
+C51 COMPILER V9.00   FASTLED                                                               10/19/2020 20:50:39 PAGE 1   
+
+
+C51 COMPILER V9.00, COMPILATION OF MODULE FASTLED
+OBJECT MODULE PLACED IN .\Objects\fastled.obj
+COMPILER INVOKED BY: f:\Keil\C51\BIN\C51.EXE fastled.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\fast
+                    -led.lst) OBJECT(.\Objects\fastled.obj)
+
+line level    source
+
+   1          #include "stc15.h"
+   2          #include "ws2812.h"
+   3          uchar xdata rgb[60][3];//led数组
+   4          uchar sendrgb=0;//预发送rgb变量
+   5          uchar h=0,l=0,o=0;
+   6          uchar in=0;
+   7          void delayms(int x)
+   8          {
+   9   1              int i,j;
+  10   1              for(i=0;i<x;i++)
+  11   1              for(j=0;j<1000;j++);
+  12   1      }
+  13          
+  14          void UartInit(void)             //115200bps@33.1776MHz
+  15          {
+  16   1              SCON = 0x50;            //8位数据,可变波特率
+  17   1              AUXR |= 0x01;           //串口1选择定时器2为波特率发生器
+  18   1              AUXR |= 0x04;           //定时器2时钟为Fosc,即1T
+  19   1              T2L = 0xB8;             //设定定时初值
+  20   1              T2H = 0xFF;             //设定定时初值
+  21   1              AUXR |= 0x10;           //启动定时器2
+  22   1              ES = 1;              //使能串口1中断
+  23   1      }
+  24          void initrgb(uchar st,uchar sp,uchar rg0,uchar rg1,uchar rg2)//起始位，结束位，rgb1，2，3(初始化数组）
+  25          {
+  26   1      uchar i,j;
+  27   1              for(i=st;i<sp;i++)
+  28   1              {               
+  29   2                      for(j=0;j<3;j++)
+  30   2                      {
+  31   3                              switch(j)
+  32   3                              {
+  33   4                                      case 0:
+  34   4                              rgb[i][j]=rg0;
+  35   4                                      break;
+  36   4                                      case 1:
+  37   4                              rgb[i][j]=rg1;
+  38   4                                      break;
+  39   4                                      case 2:
+  40   4                              rgb[i][j]=rg2;
+  41   4                                      break;
+  42   4                              }
+  43   3                      }
+  44   2              }       
+  45   1      }
+  46          
+  47          void display()     //刷新rebled输出函数
+  48          {
+  49   1      uchar i,j,k;
+  50   1              for(i=0;i<60;i++)
+  51   1              {
+  52   2                      for(j=0;j<3;j++)
+  53   2                      {
+  54   3                              sendrgb=rgb[i][j];
+C51 COMPILER V9.00   FASTLED                                                               10/19/2020 20:50:39 PAGE 2   
+
+  55   3                              for(k=0;k<8;k++)
+  56   3                              {
+  57   4                                      if(sendrgb&0x80)
+  58   4                                              st1();
+  59   4                                      else
+  60   4                                              st0();
+  61   4                                      sendrgb<<=1;
+  62   4                              }
+  63   3                      }
+  64   2              }
+  65   1              stop();
+  66   1      }
+  67          
+  68          void main()
+  69          {
+  70   1      UartInit();//初始化串口
+  71   1      initrgb(0,60,50,0,0);   //测试绿
+  72   1      display();
+  73   1      delayms(1000);
+  74   1      initrgb(0,60,0,50,0);   //测试红
+  75   1      display();
+  76   1      delayms(1000);
+  77   1      initrgb(0,60,0,0,50);   //测试蓝
+  78   1      display();
+  79   1      delayms(1000);
+  80   1      initrgb(0,60,0,0,0);    //清屏
+  81   1      display();
+  82   1      delayms(1000);  
+  83   1      EA = 1;   //开启中断，可接收数据
+  84   1              
+  85   1              while(1)
+  86   1                      {
+  87   2                      if(EA==0)//当中断关闭，表示一帧数据接收完毕
+  88   2                              {
+  89   3                                      display();//将当前数据刷新
+  90   3                                      EA=1;//开启中断，接收下一帧数据
+  91   3                              }
+  92   2                      }       
+  93   1      }
+  94          
+  95          void Uart() interrupt 4   //串口中断
+  96          {
+  97   1              uchar dat=0;
+  98   1          if (RI)
+  99   1          {
+ 100   2                      dat=SBUF;
+ 101   2              RI = 0;                 //清除RI位
+ 102   2              if(dat==0x41&&in==0)
+ 103   2                      {
+ 104   3                              in=1;                                   //判断数据0位（A）
+ 105   3                              return;
+ 106   3                      }
+ 107   2                      if(dat==0x64&&in==1)            //判断数据1位（d）
+ 108   2                      {
+ 109   3                              in=2;
+ 110   3                              return;
+ 111   3                      }
+ 112   2                      else if(dat==0x61&&in==2)       //判断数据2位（a）
+ 113   2                      {
+ 114   3                              in=3;
+ 115   3                              return;
+ 116   3                      }
+C51 COMPILER V9.00   FASTLED                                                               10/19/2020 20:50:39 PAGE 3   
+
+ 117   2                      else if(in==3)                          //读取高位LED个数
+ 118   2                      {
+ 119   3                              h=dat;
+ 120   3                              in++;
+ 121   3                              return;
+ 122   3                      }
+ 123   2                      else if(in==4)                          //读取低位LED个数
+ 124   2                      {
+ 125   3                              l=dat;
+ 126   3                              in++;
+ 127   3                              return;
+ 128   3                      }
+ 129   2                      else if(in==5)                          //读取校验值
+ 130   2                      {
+ 131   3                              o=dat;
+ 132   3                              if(o!=(h^l^0x55)) in=0;         //校验
+ 133   3                              else in++;
+ 134   3                              return;
+ 135   3                      }
+ 136   2                      else if(in>=6)                          //进入数据读取阶段
+ 137   2                      {
+ 138   3                              rgb[(in-6)/3][(in-6)%3]=dat;//将数据写入数组
+ 139   3                              if((in-6)/3==l)                         //根据发来的led个数确定数据是否接收完毕
+ 140   3                              {
+ 141   4                                      in=0;
+ 142   4                                      EA=0;
+ 143   4                                      return;
+ 144   4                              }
+ 145   3                              else in++;
+ 146   3                              return;
+ 147   3                      }
+ 148   2                              else                    //如果in小于6，且中途数据中断。则重新开始。
+ 149   2                              {
+ 150   3                                      in=0;
+ 151   3                                      return;
+ 152   3                              }
+ 153   2              }
+ 154   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    573    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =    180    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      5       8
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
